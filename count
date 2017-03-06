@@ -1,0 +1,1 @@
+lsof -p $(jps | grep fat | awk '{print $1}') | grep IPv6 | grep ESTAB |grep 1883| wc -l

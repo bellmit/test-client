@@ -1,0 +1,9 @@
+{
+  "host": "server",
+  "port": 1883,
+  "idle": 0,
+  "nClient": 10000,
+  "nMsg": 120,
+  "nBusy": 8000,
+  "payload": 1024
+}
