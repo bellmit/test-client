@@ -107,7 +107,9 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
     }
 
     private void onMessageFromBroker(AbstractMessage msg) throws Exception {
-        logger.info("Broker <<< " + getClientInfo() + " :" + msg);
+        if (msg.getMessageType() != PUBLISH) {
+            logger.info("Broker >>> " + getClientInfo() + " :" + msg);
+        }
         switch (msg.getMessageType()) {
             case CONNACK:
                 this.client.onConnect((ConnAckMessage) msg);
@@ -118,6 +120,17 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
                 this.client.onSubAck((SubAckMessage)msg);
                 break;
             case PUBLISH:
+                PublishMessage pub = (PublishMessage) msg;
+                logger.info("Broker >>> " + getClientInfo() + " :" + pub.getPayloadAsString());
+                switch (pub.getQos()) {
+                    case LEAST_ONE:
+                        PubAckMessage ack = new PubAckMessage();
+                        ack.setMessageID(pub.getMessageID());
+                        sendMessageToBroker(ack);
+                        break;
+                    case MOST_ONE:
+                        break;
+                }
                 break;
             case PUBACK:
                 this.client.onPubAck((PubAckMessage) msg);
@@ -143,7 +156,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
 
     public void sendMessageToBroker(AbstractMessage message) {
         try {
-            logger.info(">>> " + message);
+            logger.info("Broker <<< " + message);
             Buffer b1 = encoder.enc(message);
             sendBytesOverSocket(b1);
         } catch (Throwable e) {

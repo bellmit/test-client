@@ -9,6 +9,7 @@ import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetSocket;
 import org.dna.mqtt.moquette.proto.messages.*;
+import pku.netlab.hermes.message.Event;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -64,7 +65,9 @@ public class MQTTClient {
         this.keepAlive = keepAlive;
         this.statistics.put("connectDelay", System.currentTimeMillis());
         this.netClient = vertx.createNetClient(new NetClientOptions()
-                .setConnectTimeout(10_000).setReconnectAttempts(10).setReconnectInterval(3_000));
+                .setConnectTimeout(10_000).setReconnectAttempts(10).setReconnectInterval(3_000)
+                .setTcpNoDelay(true).setSendBufferSize(2048).setReceiveBufferSize(2048)
+                .setUsePooledBuffers(true).setTcpKeepAlive(true));
         this.connected = future;
         connectWithRetry(host, port);
     }
@@ -158,7 +161,8 @@ public class MQTTClient {
                 vertx.cancelTimer(id);
             } else {
                 this.sent += 1;
-                this.publish(clientID, payload, AbstractMessage.QOSType.LEAST_ONE);
+                this.publish(clientID, Event.randomEvent().toString(), AbstractMessage.QOSType.LEAST_ONE);
+                //this.publish(clientID, payload, AbstractMessage.QOSType.LEAST_ONE);
             }
         });
     }
@@ -211,6 +215,7 @@ public class MQTTClient {
     public void publish(String topic, String payload, AbstractMessage.QOSType qos)  {
         PublishMessage publishMessage = new PublishMessage();
         publishMessage.setTopicName(topic);
+        publishMessage.setMessageType(AbstractMessage.PUBLISH);
         try {
             publishMessage.setPayload(payload);
         } catch (UnsupportedEncodingException e) {

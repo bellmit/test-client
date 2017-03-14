@@ -3,7 +3,7 @@
   "port": 1883,
   "idle": 0,
   "nClient": 10000,
-  "nMsg": 120,
-  "nBusy": 8000,
+  "nMsg": 1,
+  "nBusy": 1,
   "payload": 1024
 }

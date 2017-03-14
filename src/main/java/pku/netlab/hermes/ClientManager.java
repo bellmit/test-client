@@ -109,6 +109,6 @@ public class ClientManager extends AbstractVerticle {
         map.put("end", System.currentTimeMillis());
         map.put("qps", (nMsg * nBusy) * 1000 / (map.get("end") - map.get("start")));
         System.out.println(map);
-        System.exit(0);
+        //System.exit(0);
     }
 }
