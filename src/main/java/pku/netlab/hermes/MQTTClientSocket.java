@@ -120,6 +120,8 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
                 this.client.onSubAck((SubAckMessage)msg);
                 break;
             case PUBLISH:
+                //ClientManager.counter.update();
+                //System.out.println(ClientManager.counter);
                 PublishMessage pub = (PublishMessage) msg;
                 logger.info("Broker >>> " + getClientInfo() + " :" + pub.getPayloadAsString());
                 switch (pub.getQos()) {

@@ -22,13 +22,16 @@ public class ClientManager extends AbstractVerticle {
     private static int nMsg = 10;
     private static int nBusy = 0;
     private static long start = 0;
+    private static int sleep;
     static String payload;
+    static Counter counter = new Counter();
     ArrayList<MQTTClient> clients;
     private final HashMap<String, Long> map = new HashMap<>();
 
     @Override
     public void start() throws Exception {
         byte[] bytes = new byte[config().getInteger("payload")];
+        this.sleep = config().getInteger("sleepTime");
         for (int i = 0; i < bytes.length; i += 1) bytes[i] = 'a';
         payload = new String(bytes);
         deployNClients(config());
@@ -80,7 +83,7 @@ public class ClientManager extends AbstractVerticle {
     private void allConnected(AsyncResult<Void> voidAsyncResult) {
         System.out.println(map);
         if (nMsg > 0) {
-            vertx.setTimer(3_000, id-> {
+            vertx.setTimer(this.sleep * 1_000, id-> {
                 batchPublish();
             });
         }
@@ -107,7 +110,7 @@ public class ClientManager extends AbstractVerticle {
         }
         map.compute("avgRTT", (k, v) -> v / (nBusy * nMsg));
         map.put("end", System.currentTimeMillis());
-        map.put("qps", (nMsg * nBusy) * 1000 / (map.get("end") - map.get("start")));
+        map.put("upstreamQps", (nMsg * nBusy) * 1000 / (map.get("end") - map.get("start")));
         System.out.println(map);
         //System.exit(0);
     }
