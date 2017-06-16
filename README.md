@@ -16,4 +16,5 @@ run as normal java ...
 ```
 java -jar target/modified-mqtt-broker-<version>-fat.jar -c demo.json
 ```
+TEST!!!
 
