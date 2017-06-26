@@ -1,0 +1,5 @@
+{"nMsg":30,"port":1883,"idle":0,"payload":1024,"host":"server","sleepTime":5,"nBusy":10000,"nClient":60000,"redis":"server"}
+{maxConnectDelay=42357.0, avgConnectDelay=18819.73315}
+wait QPS on upd:9999
+QPS: 10
+{maxRTT=15.0, maxConnectDelay=42357.0, avgRTT=2.8066666666666666, avgConnectDelay=18819.73315, start=1.4909850905E12, end=1.490985120508E12, upstreamQps=9.997334044254865}

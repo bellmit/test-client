@@ -1,4 +1,0 @@
-pkill tail
-touch statistics.log
-java -Xms2048m -Xmx2048m -jar ./target/mqtt-broker-0.7-alpha-fat.jar -c ./demo.json 2> statistics.log &
-tail -f statistics.log &

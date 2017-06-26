@@ -1,5 +1,6 @@
 package pku.netlab.hermes;
 
+import hermes.dataobj.EventGenerator;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -9,9 +10,9 @@ import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetSocket;
 import org.dna.mqtt.moquette.proto.messages.*;
-import pku.netlab.hermes.message.Event;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,7 +39,9 @@ public class MQTTClient {
     private Future<Void> allPublished;
     private int sent = 0;
     private ArrayList<Future> pubFutureList;
+    private EventGenerator generator;
     static final String payload = new String(new byte[1024]);
+    long rtt = 0;
 
 
 
@@ -47,7 +50,8 @@ public class MQTTClient {
         this.clientID = cid;
         this.messagePackage = new HashMap<>();
         this.inFlightMessages = new HashSet<>();
-        statistics = new HashMap<>();
+        this.statistics = new HashMap<>();
+        this.generator = new EventGenerator(20);
     }
 
     private int getGlobalMsgID() {
@@ -69,6 +73,7 @@ public class MQTTClient {
                 .setTcpNoDelay(true).setSendBufferSize(2048).setReceiveBufferSize(2048)
                 .setUsePooledBuffers(true).setTcpKeepAlive(true));
         this.connected = future;
+        rtt = System.currentTimeMillis();
         connectWithRetry(host, port);
     }
 
@@ -117,6 +122,8 @@ public class MQTTClient {
             logger.warn(String.format("%s receive duplicate connack", clientID));
             return;
         }
+        rtt = System.currentTimeMillis() - rtt;
+        logger.info("rtt: " + rtt);
         logger.info(String.format("Broker <=> %s_%s", clientID, mqttClientSocket.netSocket.localAddress()));
         statistics.compute("connectDelay", (k, v)-> System.currentTimeMillis() - v);
         setPingTimer();
@@ -132,6 +139,7 @@ public class MQTTClient {
         }
         MsgStatus status = messagePackage.get(msgID);
         status.rtt = System.currentTimeMillis() - status.tCreated;
+        logger.info("rtt: " + status.rtt);
         statistics.compute("min", (k, v) -> v == null ? status.rtt : Math.min(v, status.rtt));
         statistics.compute("max", (k, v)-> (v == null? status.rtt: Math.max(v, status.rtt)));
         statistics.compute("n", (k, v)-> (v == null? 1: v + 1));
@@ -161,7 +169,7 @@ public class MQTTClient {
                 vertx.cancelTimer(id);
             } else {
                 this.sent += 1;
-                this.publish(clientID, Event.randomEvent().toString(), AbstractMessage.QOSType.LEAST_ONE);
+                this.publish(clientID, generator.nextEvent().toByteBuffer(), AbstractMessage.QOSType.LEAST_ONE);
                 //this.publish(clientID, payload, AbstractMessage.QOSType.LEAST_ONE);
             }
         });
@@ -212,22 +220,26 @@ public class MQTTClient {
         mqttClientSocket.sendMessageToBroker(connectMessage);
     }
 
-    public void publish(String topic, String payload, AbstractMessage.QOSType qos)  {
-        PublishMessage publishMessage = new PublishMessage();
-        publishMessage.setTopicName(topic);
-        publishMessage.setMessageType(AbstractMessage.PUBLISH);
-        try {
-            publishMessage.setPayload(payload);
-        } catch (UnsupportedEncodingException e) {
-            System.err.println(e.getMessage());
-            System.exit(0);
+    public void publish(String topic, Object payload, AbstractMessage.QOSType qos)  {
+        PublishMessage pub = new PublishMessage();
+        pub.setTopicName(topic);
+        pub.setQos(qos);
+        pub.setMessageType(AbstractMessage.PUBLISH);
+        if (payload instanceof String) {
+            try {
+                pub.setPayload((String)payload);
+            } catch (UnsupportedEncodingException e) {
+                System.err.println(e.getMessage());
+                System.exit(0);
+            }
+        } else if (payload instanceof ByteBuffer) {
+            pub.setPayload((ByteBuffer)payload);
         }
-        publishMessage.setQos(qos);
         if (qos == AbstractMessage.QOSType.MOST_ONE) {
-            mqttClientSocket.sendMessageToBroker(publishMessage);
+            mqttClientSocket.sendMessageToBroker(pub);
         } else {
-            publishMessage.setMessageID(getGlobalMsgID());
-            sendMessageWithRetry(publishMessage);
+            pub.setMessageID(getGlobalMsgID());
+            sendMessageWithRetry(pub);
         }
     }
 

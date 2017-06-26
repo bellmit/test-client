@@ -1,10 +1,12 @@
 {
   "host": "server",
+  //"host": "219.223.196.132",
   "port": 1883,
   "idle": 0,
-  "nClient": 10000,
-  "nMsg": 3,
-  "nBusy": 1,
+  "nClient": 60000,
+  "nMsg": 30,
+  "nBusy": 10000,
   "sleepTime": 5,
-  "payload": 1024
+  "payload": 1024,
+  "network": "219.223"
 }
