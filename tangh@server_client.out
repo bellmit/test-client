@@ -1,3 +1,0 @@
-{"nMsg":30,"port":1883,"idle":0,"payload":1024,"host":"server","sleepTime":5,"nBusy":10000,"nClient":60000,"redis":"server"}
-{maxConnectDelay=41553.0, avgConnectDelay=26329.49975}
-wait QPS on upd:9999

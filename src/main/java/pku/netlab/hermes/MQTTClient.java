@@ -42,6 +42,7 @@ public class MQTTClient {
     private EventGenerator generator;
     static final String payload = new String(new byte[1024]);
     long rtt = 0;
+    private io.vertx.core.shareddata.Counter ackCounter;
 
 
 
@@ -52,6 +53,9 @@ public class MQTTClient {
         this.inFlightMessages = new HashSet<>();
         this.statistics = new HashMap<>();
         this.generator = new EventGenerator(20);
+        vertx.sharedData().getCounter("ack", res-> {
+            this.ackCounter = res.result();
+        });
     }
 
     private int getGlobalMsgID() {
@@ -122,6 +126,7 @@ public class MQTTClient {
             logger.warn(String.format("%s receive duplicate connack", clientID));
             return;
         }
+        this.subscribe("counter", AbstractMessage.QOSType.LEAST_ONE);
         rtt = System.currentTimeMillis() - rtt;
         logger.info("rtt: " + rtt);
         logger.info(String.format("Broker <=> %s_%s", clientID, mqttClientSocket.netSocket.localAddress()));
@@ -129,6 +134,10 @@ public class MQTTClient {
         setPingTimer();
         setRetryTimer();
         connected.complete();
+    }
+
+    public void onPublish(PublishMessage pub) {
+        ackCounter.incrementAndGet(aVoid->{});
     }
 
     public boolean onPubAck(PubAckMessage ackMessage) {
@@ -150,6 +159,7 @@ public class MQTTClient {
 
     public void pubNMsg(int target, Future<Void> future) {
         this.allPublished = future;
+        //这里会溢出，需要控制index
         this.pubFutureList = new ArrayList<>(target);
 
         for (int i = 0; i < target; i += 1) {
@@ -217,6 +227,10 @@ public class MQTTClient {
         connectMessage.setCleanSession(true);
         connectMessage.setClientID(clientID);
         connectMessage.setKeepAlive(keepAlive);
+        connectMessage.setUsername("mobvoi");
+        connectMessage.setPassword("mobvoiawesome");
+        connectMessage.setPasswordFlag(true);
+        connectMessage.setUserFlag(true);
         mqttClientSocket.sendMessageToBroker(connectMessage);
     }
 

@@ -1,6 +1,5 @@
 package pku.netlab.hermes;
 
-import io.vertx.core.Context;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -23,7 +22,6 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
     private MQTTEncoder encoder;
     private MQTTPacketTokenizer tokenizer;
     public NetSocket netSocket;
-    public Context context;
     private MQTTClient client;
     private String clientID;
 
@@ -123,6 +121,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
                 //ClientManager.counter.update();
                 //System.out.println(ClientManager.counter);
                 PublishMessage pub = (PublishMessage) msg;
+                this.client.onPublish(pub);
                 logger.info("Broker >>> " + getClientInfo() + " :" + pub.getPayloadAsString());
                 switch (pub.getQos()) {
                     case LEAST_ONE:

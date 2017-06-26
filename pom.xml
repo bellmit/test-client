@@ -11,7 +11,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <vertx.version>3.3.3</vertx.version>
+        <vertx.version>3.4.2</vertx.version>
         <vertx.scope>provided</vertx.scope>
         <wso2.scope>provided</wso2.scope>
     </properties>
@@ -23,10 +23,6 @@
             <url>https://oss.sonatype.org/content/repositories/snapshots</url>
         </repository>
         <repository>
-            <id>eclipse-paho-releases</id>
-            <url>https://repo.eclipse.org/content/repositories/paho-releases/</url>
-        </repository>
-        <repository>
             <id>wso2-maven2-repository</id>
             <url>http://maven.wso2.org/nexus/content/groups/public/</url>
         </repository>
@@ -36,25 +32,8 @@
     <dependencies>
         <dependency>
             <groupId>io.vertx</groupId>
-            <artifactId>vertx-redis-client</artifactId>
-            <version>3.3.2</version>
-        </dependency>
-        <dependency>
-            <groupId>io.vertx</groupId>
             <artifactId>vertx-core</artifactId>
             <version>${vertx.version}</version>
-            <scope>${vertx.scope}</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.vertx</groupId>
-            <artifactId>vertx-zookeeper</artifactId>
-            <version>${vertx.version}</version>
-            <scope>${vertx.scope}</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.cyngn.vertx</groupId>
-            <artifactId>vertx-kafka</artifactId>
-            <version>0.4.1</version>
             <scope>${vertx.scope}</scope>
         </dependency>
         <dependency>
@@ -68,38 +47,9 @@
             <artifactId>matcher</artifactId>
             <version>0.9</version>
         </dependency>
-
-
-        <!--Test dependencies-->
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.11</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.paho</groupId>
-            <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
-            <version>1.0.2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk16</artifactId>
-            <version>1.46</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.vertx</groupId>
-            <artifactId>vertx-mongo-client</artifactId>
-            <version>3.3.2</version>
-        </dependency>
-        <dependency>
-            <groupId>io.vertx</groupId>
-            <artifactId>vertx-redis-client</artifactId>
-            <version>3.3.2</version>
-        </dependency>
     </dependencies>
+
+
 
     <build>
         <plugins>
@@ -127,7 +77,7 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Main-Class>pku.netlab.hermes.ClientManager</Main-Class>
+                                        <Main-Class>pku.netlab.hermes.Main</Main-Class>
                                     </manifestEntries>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
