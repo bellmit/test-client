@@ -1,6 +1,5 @@
 package pku.netlab.hermes;
 
-import hermes.dataobj.EventGenerator;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -13,20 +12,19 @@ import org.dna.mqtt.moquette.proto.messages.*;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Created by hult on 11/28/16.
  */
 public class MQTTClient {
-    static final int RETRY = 30_000; //in ms
-    static final int CONNECT_RETRY = 3;
+    static final int RETRY = 10_000; //in ms
+    static final int CONNECT_RETRY = 10; //retry times
     private int tried = CONNECT_RETRY;
     private Vertx vertx;
     private NetClient netClient;
+    private String username;
+    private String password;
     private String host;
     private int port = 1883;
     private int keepAlive = 120; //default ping server every 120s
@@ -34,16 +32,14 @@ public class MQTTClient {
     private HashSet<Integer> inFlightMessages;
     public HashMap<Integer, MsgStatus> messagePackage;
     private int globalMsgID = 0;
-    protected HashMap<String, Long> statistics;
-    private Future<Void> connected;
+    protected Map<String, Long> statistics;
+    private Map<Integer, Future> futures;
     private Future<Void> allPublished;
     private int sent = 0;
     private ArrayList<Future> pubFutureList;
-    private EventGenerator generator;
     static final String payload = new String(new byte[1024]);
     long rtt = 0;
     private io.vertx.core.shareddata.Counter ackCounter;
-
 
 
     public MQTTClient(Vertx v, String cid) {
@@ -51,9 +47,8 @@ public class MQTTClient {
         this.clientID = cid;
         this.messagePackage = new HashMap<>();
         this.inFlightMessages = new HashSet<>();
-        this.statistics = new HashMap<>();
-        this.generator = new EventGenerator(20);
-        vertx.sharedData().getCounter("ack", res-> {
+        this.futures = new HashMap<>();
+        vertx.sharedData().getCounter("ack", res -> {
             this.ackCounter = res.result();
         });
     }
@@ -64,57 +59,62 @@ public class MQTTClient {
         return ret;
     }
 
-    public void connectBroker(String host, int port, int keepAlive, Future<Void> future) throws Exception{
+    public Future connectBroker(String host, int port, int keepAlive) throws Exception {
         if (host == null || host.length() == 0) throw new Exception("Invalid host.");
         if (port <= 0) throw new Exception("Invalid port number.");
         if (keepAlive < 0) throw new Exception("Keep alive must >= 0.");
         this.host = host;
         this.port = port;
         this.keepAlive = keepAlive;
-        this.statistics.put("connectDelay", System.currentTimeMillis());
         this.netClient = vertx.createNetClient(new NetClientOptions()
                 .setConnectTimeout(10_000).setReconnectAttempts(10).setReconnectInterval(3_000)
                 .setTcpNoDelay(true).setSendBufferSize(2048).setReceiveBufferSize(2048)
                 .setUsePooledBuffers(true).setTcpKeepAlive(true));
-        this.connected = future;
         rtt = System.currentTimeMillis();
+        futures.putIfAbsent(-1, Future.future());
         connectWithRetry(host, port);
+        return futures.get(-1);
     }
 
     private void connectWithRetry(String host, int port) {
-        netClient.connect(port, host, res -> {
-            if (!res.succeeded()) {
-                logger.warn(String.format("%s tcp connect failed for [%s] and retry", clientID, res.cause().getMessage()));
-                connectWithRetry(host, port);
-            } else {
-                NetSocket sock = res.result();
-                mqttClientSocket = new MQTTClientSocket(sock, this);
-                logger.info(String.format("TCP from %s at %s established, try mqtt CONNECT", clientID, mqttClientSocket.netSocket.localAddress()));
-                sendConnectMsg();
-                vertx.setPeriodic(3_000, id -> {
-                    if (!connected.isComplete() && tried > 0) {
-                        tried -= 1;
-                        sendConnectMsg();
-                    } else {
-                        vertx.cancelTimer(id);
-                        tried = CONNECT_RETRY;
-                        if (!connected.isComplete()) {
-                            logger.warn(String.format("%s at %s not receive connack, tcp reconnect", clientID, mqttClientSocket.netSocket.localAddress()));
-                            mqttClientSocket.closeConnection();
-                            mqttClientSocket = null;
-                            connectWithRetry(host, port);
+        this.vertx.setTimer((long)(5000 * Math.random()), id -> {
+            netClient.connect(port, host, res -> {
+                if (!res.succeeded()) {
+                    logger.warn(String.format("%s tcp connect failed for [%s] and retry", clientID, res.cause().getMessage()));
+                    connectWithRetry(host, port);
+                } else {
+                    NetSocket sock = res.result();
+                    mqttClientSocket = new MQTTClientSocket(sock, this);
+                    logger.info(String.format("TCP from %s at %s established, try mqtt CONNECT", clientID, mqttClientSocket.netSocket.localAddress()));
+                    sendConnectMsg();
+                    vertx.setPeriodic(3_000, login -> {
+                        Future connected = futures.get(-1);
+                        if (!connected.isComplete() && tried > 0) {
+                            tried -= 1;
+                            sendConnectMsg();
+                        } else {
+                            vertx.cancelTimer(login);
+                            tried = CONNECT_RETRY;
+                            if (!connected.isComplete()) {
+                                logger.warn(String.format("%s at %s not receive connect ack, tcp reconnect", clientID, mqttClientSocket.netSocket.localAddress()));
+                                mqttClientSocket.closeConnection();
+                                mqttClientSocket = null;
+                                connectWithRetry(host, port);
+                            }
                         }
-                    }
-                });
-            };
+                    });
+                }
+                ;
+            });
         });
+
     }
 
 
     private void setPingTimer() {
         if (keepAlive > 0) {
             double random = new Random().nextDouble() + keepAlive;
-            vertx.setPeriodic((int)(random * 1000), id -> {
+            vertx.setPeriodic((int) (random * 1000), id -> {
                 PingReqMessage ping = new PingReqMessage();
                 mqttClientSocket.sendMessageToBroker(ping);
             });
@@ -122,22 +122,19 @@ public class MQTTClient {
     }
 
     public void onConnect(ConnAckMessage ack) {
+        Future connected = futures.get(-1);
         if (connected.isComplete()) {
-            logger.warn(String.format("%s receive duplicate connack", clientID));
+            logger.warn(String.format("%s receive duplicate CONNACK", clientID));
             return;
         }
-        this.subscribe("counter", AbstractMessage.QOSType.LEAST_ONE);
-        rtt = System.currentTimeMillis() - rtt;
-        logger.info("rtt: " + rtt);
-        logger.info(String.format("Broker <=> %s_%s", clientID, mqttClientSocket.netSocket.localAddress()));
-        statistics.compute("connectDelay", (k, v)-> System.currentTimeMillis() - v);
+        connected.complete();
         setPingTimer();
         setRetryTimer();
-        connected.complete();
     }
 
     public void onPublish(PublishMessage pub) {
-        ackCounter.incrementAndGet(aVoid->{});
+        ackCounter.incrementAndGet(aVoid -> {
+        });
     }
 
     public boolean onPubAck(PubAckMessage ackMessage) {
@@ -150,8 +147,8 @@ public class MQTTClient {
         status.rtt = System.currentTimeMillis() - status.tCreated;
         logger.info("rtt: " + status.rtt);
         statistics.compute("min", (k, v) -> v == null ? status.rtt : Math.min(v, status.rtt));
-        statistics.compute("max", (k, v)-> (v == null? status.rtt: Math.max(v, status.rtt)));
-        statistics.compute("n", (k, v)-> (v == null? 1: v + 1));
+        statistics.compute("max", (k, v) -> (v == null ? status.rtt : Math.max(v, status.rtt)));
+        statistics.compute("n", (k, v) -> (v == null ? 1 : v + 1));
         statistics.compute("total", (k, v) -> (v == null ? status.rtt : v + status.rtt));
         pubFutureList.get(msgID).complete();
         return true;
@@ -165,7 +162,7 @@ public class MQTTClient {
         for (int i = 0; i < target; i += 1) {
             this.pubFutureList.add(Future.future());
         }
-        CompositeFuture.all(pubFutureList).setHandler(f-> {
+        CompositeFuture.all(pubFutureList).setHandler(f -> {
             if (f.succeeded()) {
                 this.allPublished.complete();
                 logger.info(clientID + " finished his job");
@@ -174,13 +171,12 @@ public class MQTTClient {
             }
         });
 
-        vertx.setPeriodic(1_000, id-> {
+        vertx.setPeriodic(1_000, id -> {
             if (this.sent == target) {
                 vertx.cancelTimer(id);
             } else {
                 this.sent += 1;
-                this.publish(clientID, generator.nextEvent().toByteBuffer(), AbstractMessage.QOSType.LEAST_ONE);
-                //this.publish(clientID, payload, AbstractMessage.QOSType.LEAST_ONE);
+                this.publish(clientID, payload, AbstractMessage.QOSType.LEAST_ONE);
             }
         });
     }
@@ -197,7 +193,10 @@ public class MQTTClient {
     }
 
     public void onSubAck(SubAckMessage msg) {
-        inFlightMessages.remove(msg.getMessageID());
+        int messageID = msg.getMessageID();
+        inFlightMessages.remove(messageID);
+        Future subAck = futures.remove(messageID);
+        subAck.complete();
     }
 
     public void onUnsub(UnsubAckMessage msg) {
@@ -206,7 +205,7 @@ public class MQTTClient {
 
 
     private void setRetryTimer() {
-        vertx.setPeriodic(1000, id-> {
+        vertx.setPeriodic(1000, id -> {
             if (inFlightMessages != null && inFlightMessages.size() > 0) {
                 long now = System.currentTimeMillis();
                 for (int msgId : inFlightMessages) {
@@ -227,27 +226,34 @@ public class MQTTClient {
         connectMessage.setCleanSession(true);
         connectMessage.setClientID(clientID);
         connectMessage.setKeepAlive(keepAlive);
-        connectMessage.setUsername("mobvoi");
-        connectMessage.setPassword("mobvoiawesome");
-        connectMessage.setPasswordFlag(true);
-        connectMessage.setUserFlag(true);
+        if (this.username != null) {
+            connectMessage.setPasswordFlag(true);
+            connectMessage.setUserFlag(true);
+            connectMessage.setUsername(this.username);
+            connectMessage.setPassword(this.password);
+        }
         mqttClientSocket.sendMessageToBroker(connectMessage);
     }
 
-    public void publish(String topic, Object payload, AbstractMessage.QOSType qos)  {
+    public void setUsernamePwd(String username, String pwd) {
+        this.username = username;
+        this.password = pwd;
+    }
+
+    public void publish(String topic, Object payload, AbstractMessage.QOSType qos) {
         PublishMessage pub = new PublishMessage();
         pub.setTopicName(topic);
         pub.setQos(qos);
         pub.setMessageType(AbstractMessage.PUBLISH);
         if (payload instanceof String) {
             try {
-                pub.setPayload((String)payload);
+                pub.setPayload((String) payload);
             } catch (UnsupportedEncodingException e) {
                 System.err.println(e.getMessage());
                 System.exit(0);
             }
         } else if (payload instanceof ByteBuffer) {
-            pub.setPayload((ByteBuffer)payload);
+            pub.setPayload((ByteBuffer) payload);
         }
         if (qos == AbstractMessage.QOSType.MOST_ONE) {
             mqttClientSocket.sendMessageToBroker(pub);
@@ -269,11 +275,15 @@ public class MQTTClient {
     }
 
 
-    public void subscribe(String topic, AbstractMessage.QOSType qosType) {
+    public Future subscribe(String topic, AbstractMessage.QOSType qosType) {
         SubscribeMessage sub = new SubscribeMessage();
         sub.addSubscription(new SubscribeMessage.Couple(new QOSUtils().toByte(qosType), topic));
-        sub.setMessageID(getGlobalMsgID());
+        int messageID = getGlobalMsgID();
+        Future subscribed = Future.future();
+        futures.put(messageID, subscribed);
+        sub.setMessageID(messageID);
         sendMessageWithRetry(sub);
+        return subscribed;
     }
 
 
@@ -285,6 +295,7 @@ public class MQTTClient {
         String topic;
         String[] contents;
         int index = 0;
+
         public Task(int n, String topic) {
             this.num = n;
             this.topic = topic;
@@ -304,17 +315,20 @@ public class MQTTClient {
         long tCreated;
         long rtt;
         int retry;
+
         public MsgStatus(MessageIDMessage msg) {
             this.msg = msg;
             this.retry = 0;
             this.tCreated = System.currentTimeMillis();
             this.tLastSent = tCreated;
         }
+
         public void update() {
             this.tLastSent = System.currentTimeMillis();
             this.retry += 1;
         }
     }
+
     private Logger logger = LoggerFactory.getLogger(MQTTClient.class);
     protected String clientID;
 

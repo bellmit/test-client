@@ -1,12 +1,13 @@
 {
   "host": "localhost",
   //"host": "219.223.196.132",
-  "port": 14000,
-  "idle": 120,
-  "nClient": 2000,
-  "nMsg": 30,
-  "nBusy": 0,
-  "sleepTime": 5,
+  "port": 1883,
+  "interval": 120,
+  "client_num": 10,
+  "duration": 3,
+  "qps": 0,
   "payload": 1024,
-  "network": "219.223"
+  "network": "192.168",
+  "username": "",
+  "password": "mobvoiawesome"
 }

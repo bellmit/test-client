@@ -5,6 +5,8 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.shareddata.Counter;
 
+import java.util.Arrays;
+
 /**
  * Created by hult on 6/26/17.
  */
@@ -17,9 +19,12 @@ public class Tracer extends AbstractVerticle{
             this.counter = res.result();
             vertx.setPeriodic(1_000, id-> {
                 counter.get(getC-> {
-                    System.out.println(getC.result());
+                    logger.debug(getC.result());
                 });
             });
         });
+    }
+
+    public static void main(String[] args) {
     }
 }

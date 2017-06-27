@@ -43,9 +43,9 @@
             <scope>${vertx.scope}</scope>
         </dependency>
         <dependency>
-            <groupId>netlab</groupId>
-            <artifactId>matcher</artifactId>
-            <version>0.9</version>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>1.2.17</version>
         </dependency>
     </dependencies>
 
@@ -92,7 +92,6 @@
                                 here -->
                                 <excludes>
                                     <exclude>io.vertx:vertx-codegen</exclude>
-                                    <exclude>junit:junit</exclude>
                                     <exclude>org.mvel:mvel2</exclude>
                                     <!--exclude>log4j:log4j</exclude>
                                     <exclude>org.slf4j:slf4j-api</exclude-->

@@ -6,6 +6,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.io.FileUtils;
+import org.dna.mqtt.moquette.proto.messages.AbstractMessage;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Stream;
 
-;
 
 /**
  * Created by hult on 11/29/16.
@@ -28,26 +28,24 @@ public class ClientManager extends AbstractVerticle {
     private int seq;
     private static int nMsg = 10;
     private static int nBusy = 0;
-    private static long start = 0;
-    private static int sleep;
+    private int nClient;
     static String payload;
     ArrayList<MQTTClient> clients;
     private final HashMap<String, Double> map = new HashMap<>();
     private String networkID;
-    private Vertx v;
+    private Config conf;
 
-    public ClientManager(int i) {
+    public ClientManager(int i, Config config) {
         this.seq = i;
+        this.conf = config;
     }
 
 
     @Override
     public void start() throws Exception {
         byte[] bytes = new byte[config().getInteger("payload")];
-        this.sleep = config().getInteger("sleepTime");
         for (int i = 0; i < bytes.length; i += 1) bytes[i] = 'a';
         payload = new String(bytes);
-        this.v = vertx;
         deployNClients(config());
     }
 
@@ -55,13 +53,12 @@ public class ClientManager extends AbstractVerticle {
         String config = FileUtils.readFileToString(new File("config.json"), "UTF-8");
         DeploymentOptions options = new DeploymentOptions();
         options.setConfig(new JsonObject(config));
-        //Vertx.vertx().deployVerticle(ClientManager.class.getName(), options);
+        Vertx.vertx().deployVerticle(ClientManager.class.getName(), options);
     }
 
     private void deployNClients(JsonObject config) throws Exception {
-        System.out.println(config);
-        int nClient = config.getInteger("nClient") / Runtime.getRuntime().availableProcessors();
-        this.nBusy = config.getInteger("nBusy") / Runtime.getRuntime().availableProcessors();
+        this.nClient = config.getInteger("nClient") / Main.INSTANCE_NUM;
+        this.nBusy = config.getInteger("nBusy") / Main.INSTANCE_NUM;
         this.nMsg = config.getInteger("nMsg");
         this.networkID = config.getString("network");
 
@@ -70,11 +67,13 @@ public class ClientManager extends AbstractVerticle {
         String prefix = String.format("%s_%02d_", this.getIpAddress(networkID), this.seq);
 
         for (int i = 0; i < nClient; i += 1) {
-            Future future = Future.future();
-            connectFutures.add(future);
-            MQTTClient c = new MQTTClient(vertx, String.format("%s%06d", prefix, i));
-            c.connectBroker(config.getString("host"), config.getInteger("port"), config.getInteger("idle"), future);
-            clients.add(c);
+            MQTTClient client = new MQTTClient(vertx, String.format("%s%06d", prefix, i));
+            if (config.containsKey("username") && !config.getString("username").isEmpty()) {
+                client.setUsernamePwd(config.getString("username"), config.getString("password"));
+            }
+            Future connected = client.connectBroker(config.getString("host"), config.getInteger("port"), config.getInteger("idle"));
+            connectFutures.add(connected);
+            clients.add(client);
         }
 
         Future<Void> allConnected = Future.future();
@@ -82,14 +81,7 @@ public class ClientManager extends AbstractVerticle {
 
         CompositeFuture.all(connectFutures).setHandler(res -> {
             if (res.succeeded()) {
-                Long totalDelay = 0L, maxDelay = 0L;
-                for (MQTTClient client : clients) {
-                    Long delay = client.statistics.get("connectDelay");
-                    totalDelay += delay;
-                    maxDelay = Math.max(maxDelay, delay);
-                }
-                map.put("maxConnectDelay", (double) maxDelay);
-                map.put("avgConnectDelay", ((double)totalDelay) / nClient);
+                System.out.println("ALL CONNECTED");
                 allConnected.complete();
             }
 
@@ -97,7 +89,7 @@ public class ClientManager extends AbstractVerticle {
     }
 
     private void allConnected(AsyncResult<Void> voidAsyncResult) {
-        System.out.println(map);
+        batchSubscribe();
         Future<Integer> batchPubFuture = Future.future();
         batchPubFuture.setHandler(res-> {
             if (res.succeeded()) {
@@ -116,6 +108,19 @@ public class ClientManager extends AbstractVerticle {
                 });
             }
         });
+    }
+
+    private void batchSubscribe() {
+        List<Future> allSub = new ArrayList<>(this.nClient);
+        CompositeFuture.all(allSub).setHandler(this::allSubscribed);
+        for (MQTTClient client : clients) {
+            Future subAck = client.subscribe("broadcast", AbstractMessage.QOSType.LEAST_ONE);
+            allSub.add(subAck);
+        }
+    }
+
+    private void allSubscribed(AsyncResult<CompositeFuture> res) {
+        System.out.println("all sub acked!");
     }
 
     private void batchPublish(int QPS) {
@@ -143,25 +148,5 @@ public class ClientManager extends AbstractVerticle {
         map.put("upstreamQps", (nMsg * nBusy) * 1000.0 / (map.get("end") - map.get("start")));
         System.out.println(map);
         System.exit(0);
-    }
-
-        private String getIpAddress(String networkID) {
-        Stream<String> ipStream = Stream.empty();
-        try {
-            Enumeration<NetworkInterface> enumeration = NetworkInterface.getNetworkInterfaces();
-            while (enumeration.hasMoreElements()) {
-                NetworkInterface ni = enumeration.nextElement();
-                ipStream = Stream.concat(ipStream, ni.getInterfaceAddresses().stream().map(ia -> ia.getAddress().getHostAddress()));
-            }
-        } catch (SocketException e) {
-            logger.error(e.getMessage());
-            System.exit(0);
-        }
-        String ret = ipStream.filter(ip -> ip.startsWith(networkID)).findFirst().get();
-        if (ret == null) {
-            logger.error("failed to find ip address starts with " + networkID);
-            System.exit(0);
-        }
-        return ret;
     }
 }

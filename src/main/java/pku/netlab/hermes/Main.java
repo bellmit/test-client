@@ -23,12 +23,7 @@ import java.util.List;
  * Created by Giovanni Baleani on 13/11/2015.
  */
 public class Main {
-
-    private static Logger logger = LoggerFactory.getLogger(Main.class);
-
-    public static void main(String[] args) {
-        start(args);
-    }
+    public static final int INSTANCE_NUM = Runtime.getRuntime().availableProcessors();
 
     static CommandLine cli(String[] args) {
         CLI cli = CLI.create("java -jar <mqtt-broker>-fat.jar")
@@ -51,8 +46,7 @@ public class Main {
         return commandLine;
     }
 
-    public static void start(String[] args) {
-        System.out.println("start");
+    public static void main(String[] args) throws IOException{
         CommandLine commandLine = cli(args);
         if (commandLine == null) {
             System.out.println("no config file");
@@ -62,24 +56,20 @@ public class Main {
         String confFilePath = commandLine.getOptionValue("c");
 
         DeploymentOptions deploymentOptions = new DeploymentOptions();
-        if (confFilePath != null) {
-            try {
-                String json = FileUtils.readFileToString(new File(confFilePath), "UTF-8");
-                JsonObject config = new JsonObject(json);
-                deploymentOptions.setConfig(config);
-            } catch (IOException e) {
-                logger.fatal(e.getMessage(), e);
-            }
+        if (confFilePath == null) {
+            System.out.println("config file should not be empty");
+            System.exit(0);
         }
+        String jsonStr = FileUtils.readFileToString(new File(confFilePath), "UTF-8");
+        Config config = new Config(new JsonObject(jsonStr));
 
-
-        ClientManager[] managers = new ClientManager[Runtime.getRuntime().availableProcessors()];
+        ClientManager[] managers = new ClientManager[INSTANCE_NUM];
         for (int i = 0; i < managers.length; i += 1) {
-            managers[i] = new ClientManager(i);
+            managers[i] = new ClientManager(i, config);
         }
         Vertx vertx = Vertx.vertx();
         for (ClientManager manager : managers) {
-            vertx.deployVerticle(manager, deploymentOptions);
+            vertx.deployVerticle(manager);
         }
         vertx.deployVerticle(Tracer.class.getName());
     }
