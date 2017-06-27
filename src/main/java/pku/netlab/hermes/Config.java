@@ -82,4 +82,8 @@ public class Config {
         int i = new Random().nextInt(hosts.length);
         return hosts[i];
     }
+
+    public int getInstanceNum() {
+        return Runtime.getRuntime().availableProcessors();
+    }
 }

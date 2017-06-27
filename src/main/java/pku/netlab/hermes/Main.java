@@ -7,8 +7,6 @@ import io.vertx.core.cli.CLIException;
 import io.vertx.core.cli.CommandLine;
 import io.vertx.core.cli.Option;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.io.FileUtils;
 import pku.netlab.hermes.tracer.Tracer;
 
@@ -23,7 +21,6 @@ import java.util.List;
  * Created by Giovanni Baleani on 13/11/2015.
  */
 public class Main {
-    public static final int INSTANCE_NUM = Runtime.getRuntime().availableProcessors();
 
     static CommandLine cli(String[] args) {
         CLI cli = CLI.create("java -jar <mqtt-broker>-fat.jar")
@@ -63,7 +60,7 @@ public class Main {
         String jsonStr = FileUtils.readFileToString(new File(confFilePath), "UTF-8");
         Config config = new Config(new JsonObject(jsonStr));
 
-        ClientManager[] managers = new ClientManager[INSTANCE_NUM];
+        ClientManager[] managers = new ClientManager[config.getInstanceNum()];
         for (int i = 0; i < managers.length; i += 1) {
             managers[i] = new ClientManager(i, config);
         }

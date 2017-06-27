@@ -10,14 +10,10 @@ import org.dna.mqtt.moquette.proto.messages.AbstractMessage;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Stream;
 
 
 /**
@@ -43,10 +39,7 @@ public class ClientManager extends AbstractVerticle {
 
     @Override
     public void start() throws Exception {
-        byte[] bytes = new byte[config().getInteger("payload")];
-        for (int i = 0; i < bytes.length; i += 1) bytes[i] = 'a';
-        payload = new String(bytes);
-        deployNClients(config());
+        deployNClients();
     }
 
     public static void main(String[] args) throws IOException {
@@ -56,30 +49,23 @@ public class ClientManager extends AbstractVerticle {
         Vertx.vertx().deployVerticle(ClientManager.class.getName(), options);
     }
 
-    private void deployNClients(JsonObject config) throws Exception {
-        this.nClient = config.getInteger("nClient") / Main.INSTANCE_NUM;
-        this.nBusy = config.getInteger("nBusy") / Main.INSTANCE_NUM;
-        this.nMsg = config.getInteger("nMsg");
-        this.networkID = config.getString("network");
-
+    private void deployNClients() throws Exception {
         this.clients = new ArrayList<>(nClient);
-        List<Future> connectFutures = new ArrayList<>(nClient);
-        String prefix = String.format("%s_%02d_", this.getIpAddress(networkID), this.seq);
+        List<Future> connectedFutures = new ArrayList<>(nClient);
+        String prefix = String.format("%s_%s_", conf.getIPAddr(), this.seq);
 
         for (int i = 0; i < nClient; i += 1) {
-            MQTTClient client = new MQTTClient(vertx, String.format("%s%06d", prefix, i));
-            if (config.containsKey("username") && !config.getString("username").isEmpty()) {
-                client.setUsernamePwd(config.getString("username"), config.getString("password"));
-            }
-            Future connected = client.connectBroker(config.getString("host"), config.getInteger("port"), config.getInteger("idle"));
-            connectFutures.add(connected);
+            MQTTClient client = new MQTTClient(vertx, prefix+i);
+            client.setUsernamePwd(conf.getUsernamePwd());
+            Future connected = client.connectBroker(conf);
+            connectedFutures.add(connected);
             clients.add(client);
         }
 
         Future<Void> allConnected = Future.future();
         allConnected.setHandler(this::allConnected);
 
-        CompositeFuture.all(connectFutures).setHandler(res -> {
+        CompositeFuture.all(connectedFutures).setHandler(res -> {
             if (res.succeeded()) {
                 System.out.println("ALL CONNECTED");
                 allConnected.complete();
@@ -137,6 +123,7 @@ public class ClientManager extends AbstractVerticle {
     }
 
     private void allPublished(AsyncResult<CompositeFuture> compositeFutureAsyncResult) {
+        /*
         for (int i = 0; i < nBusy; i += 1) {
             MQTTClient client = clients.get(i);
             long max = client.statistics.get("max");
@@ -148,5 +135,6 @@ public class ClientManager extends AbstractVerticle {
         map.put("upstreamQps", (nMsg * nBusy) * 1000.0 / (map.get("end") - map.get("start")));
         System.out.println(map);
         System.exit(0);
+        */
     }
 }

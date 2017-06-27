@@ -7,7 +7,8 @@
   "duration": 3,
   "qps": 0,
   "payload": 1024,
-  "network": "192.168",
+  "network": "219.223",
+  //"network": "192.168",
   "username": "",
   "password": "mobvoiawesome"
 }
