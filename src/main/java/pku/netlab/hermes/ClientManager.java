@@ -22,64 +22,47 @@ import java.util.List;
 public class ClientManager extends AbstractVerticle {
     private Logger logger = LoggerFactory.getLogger(ClientManager.class);
     private int seq;
-    private static int nMsg = 10;
-    private static int nBusy = 0;
-    private int nClient;
-    static String payload;
+    private int QPS;
+    private int duration;
     ArrayList<MQTTClient> clients;
     private final HashMap<String, Double> map = new HashMap<>();
-    private String networkID;
-    private Config conf;
+    private Config config;
 
     public ClientManager(int i, Config config) {
         this.seq = i;
-        this.conf = config;
+        this.config = config;
+        this.QPS = this.config.getQPS();
+        this.duration = this.config.getDuration();
+        this.clients = new ArrayList<>(this.config.getClientNum());
     }
-
 
     @Override
     public void start() throws Exception {
-        deployNClients();
+        deployClients();
     }
 
-    public static void main(String[] args) throws IOException {
-        String config = FileUtils.readFileToString(new File("config.json"), "UTF-8");
-        DeploymentOptions options = new DeploymentOptions();
-        options.setConfig(new JsonObject(config));
-        Vertx.vertx().deployVerticle(ClientManager.class.getName(), options);
-    }
+    private void deployClients() throws Exception {
+        List<Future> connectedFutures = new ArrayList<>(config.getClientNum());
 
-    private void deployNClients() throws Exception {
-        this.clients = new ArrayList<>(nClient);
-        List<Future> connectedFutures = new ArrayList<>(nClient);
-        String prefix = String.format("%s_%s_", conf.getIPAddr(), this.seq);
-
-        for (int i = 0; i < nClient; i += 1) {
-            MQTTClient client = new MQTTClient(vertx, prefix+i);
-            client.setUsernamePwd(conf.getUsernamePwd());
-            Future connected = client.connectBroker(conf);
-            connectedFutures.add(connected);
+        for (int i = 0; i < config.getClientNum(); i += 1) {
+            String cid = String.format("%s_%s_%s", config.getIPAddr(), this.seq, i);
+            MQTTClient client = new MQTTClient(vertx, cid);
+            client.setUsernamePwd(config.getUsernamePwd());
             clients.add(client);
+            Future connected = client.connectBroker(config);
+            connectedFutures.add(connected);
         }
 
-        Future<Void> allConnected = Future.future();
-        allConnected.setHandler(this::allConnected);
-
-        CompositeFuture.all(connectedFutures).setHandler(res -> {
-            if (res.succeeded()) {
-                System.out.println("ALL CONNECTED");
-                allConnected.complete();
-            }
-
-        });
+        CompositeFuture.all(connectedFutures).setHandler(this::allConnected);
     }
 
-    private void allConnected(AsyncResult<Void> voidAsyncResult) {
-        batchSubscribe();
+    private void allConnected(AsyncResult<CompositeFuture> result) {
+        this.batchSubscribe();
+        /*
         Future<Integer> batchPubFuture = Future.future();
         batchPubFuture.setHandler(res-> {
             if (res.succeeded()) {
-                batchPublish(res.result());
+                System.out.println("ALL PUBLISH DONE");
             }
         });
         DatagramSocket socket = vertx.createDatagramSocket();
@@ -94,14 +77,15 @@ public class ClientManager extends AbstractVerticle {
                 });
             }
         });
+        */
     }
 
     private void batchSubscribe() {
-        List<Future> allSub = new ArrayList<>(this.nClient);
+        List<Future> allSub = new ArrayList<>(clients.size());
         CompositeFuture.all(allSub).setHandler(this::allSubscribed);
         for (MQTTClient client : clients) {
-            Future subAck = client.subscribe("broadcast", AbstractMessage.QOSType.LEAST_ONE);
-            allSub.add(subAck);
+            Future subFuture = client.subscribe("broadcast", AbstractMessage.QOSType.LEAST_ONE);
+            allSub.add(subFuture);
         }
     }
 
@@ -110,16 +94,17 @@ public class ClientManager extends AbstractVerticle {
     }
 
     private void batchPublish(int QPS) {
-        this.nBusy = QPS;
+        /**
+         *  some problem here, need rewrite
         map.put("start", (double)System.currentTimeMillis());
-        List<Future> allPub = new ArrayList<>(nBusy);
+        List<Future> allPub = new ArrayList<>(this.QPS);
         for (int i = 0; i < nBusy; i += 1) allPub.add(Future.future());
         CompositeFuture.all(allPub).setHandler(this::allPublished);
 
         for (int i = 0; i < nBusy; i += 1) {
             clients.get(i).pubNMsg(nMsg, allPub.get(i));
         }
-
+        */
     }
 
     private void allPublished(AsyncResult<CompositeFuture> compositeFutureAsyncResult) {
@@ -137,4 +122,12 @@ public class ClientManager extends AbstractVerticle {
         System.exit(0);
         */
     }
+
+    public static void main(String[] args) throws IOException {
+        String config = FileUtils.readFileToString(new File("config.json"), "UTF-8");
+        DeploymentOptions options = new DeploymentOptions();
+        options.setConfig(new JsonObject(config));
+        Vertx.vertx().deployVerticle(ClientManager.class.getName(), options);
+    }
+
 }

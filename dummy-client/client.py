@@ -59,14 +59,15 @@ def init_client(host):
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_disconnect = on_disconnect
+    client.username_pw_set('mobvoi', 'mobvoiawesome')
     #client.on_log = on_log
 
-    client.connect(host, 1883, 40)
+    client.connect(host, 14000, 40)
     t = Thread(target=read2q, args=(client,))
     t.start()
     client.loop_forever()
 
 
 if __name__ == '__main__':
-    host = 'localhost'
+    host = 'vmware'
     init_client(host)

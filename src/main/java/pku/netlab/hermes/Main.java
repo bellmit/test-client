@@ -21,7 +21,6 @@ import java.util.List;
  * Created by Giovanni Baleani on 13/11/2015.
  */
 public class Main {
-
     static CommandLine cli(String[] args) {
         CLI cli = CLI.create("java -jar <mqtt-broker>-fat.jar")
                 .setSummary("A vert.x MQTT Broker")
@@ -51,8 +50,6 @@ public class Main {
         }
 
         String confFilePath = commandLine.getOptionValue("c");
-
-        DeploymentOptions deploymentOptions = new DeploymentOptions();
         if (confFilePath == null) {
             System.out.println("config file should not be empty");
             System.exit(0);
