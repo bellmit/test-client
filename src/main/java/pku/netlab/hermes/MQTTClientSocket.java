@@ -1,9 +1,8 @@
 package pku.netlab.hermes;
 
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.net.NetSocket;
+import org.apache.log4j.Logger;
 import org.dna.mqtt.moquette.proto.messages.*;
 import pku.netlab.hermes.parser.MQTTDecoder;
 import pku.netlab.hermes.parser.MQTTEncoder;
@@ -15,7 +14,7 @@ import static org.dna.mqtt.moquette.proto.messages.AbstractMessage.*;
  */
 public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListener {
 
-    private static Logger logger = LoggerFactory.getLogger(MQTTClientSocket.class);
+    private static Logger logger = Logger.getLogger(MQTTClientSocket.class);
 
 
     private MQTTDecoder decoder;
@@ -48,7 +47,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
         });
         netSocket.closeHandler(aVoid -> {
             String clientInfo = getClientInfo();
-            logger.info(clientInfo + ", net-socket closed ... " + netSocket.writeHandlerID());
+            logger.debug(clientInfo + ", net-socket closed ... " + netSocket.writeHandlerID());
             clean();
 
         });
@@ -86,7 +85,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
                 AbstractMessage message = decoder.dec(buffer);
                 onMessageFromBroker(message);
             } else {
-                logger.warn("Timeout occurred ...");
+                logger.debug("Timeout occurred ...");
             }
         } catch (Throwable ex) {
             String clientInfo = getClientInfo();
@@ -106,7 +105,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
 
     private void onMessageFromBroker(AbstractMessage msg) throws Exception {
         if (msg.getMessageType() != PUBLISH) {
-            logger.info("Broker >>> " + getClientInfo() + " :" + msg);
+            logger.debug("Broker >>> " + getClientInfo() + " :" + msg);
         }
         switch (msg.getMessageType()) {
             case CONNACK:
@@ -122,7 +121,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
                 //System.out.println(ClientManager.counter);
                 PublishMessage pub = (PublishMessage) msg;
                 this.client.onPublish(pub);
-                logger.info("Broker >>> " + getClientInfo() + " :" + pub.getPayloadAsString());
+                logger.debug("Broker >>> " + getClientInfo() + " :" + pub.getPayloadAsString());
                 switch (pub.getQos()) {
                     case LEAST_ONE:
                         PubAckMessage ack = new PubAckMessage();
@@ -149,7 +148,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
                 closeConnection();
                 break;
             default:
-                logger.warn("type of message not known: " + msg.getClass().getSimpleName());
+                logger.debug("type of message not known: " + msg.getClass().getSimpleName());
                 break;
         }
     }
@@ -157,7 +156,7 @@ public class MQTTClientSocket implements MQTTPacketTokenizer.MqttTokenizerListen
 
     public void sendMessageToBroker(AbstractMessage message) {
         try {
-            logger.info("Broker <<< " + message);
+            logger.debug("Broker <<< " + message);
             Buffer b1 = encoder.enc(message);
             sendBytesOverSocket(b1);
         } catch (Throwable e) {

@@ -3,17 +3,21 @@ package pku.netlab.hermes;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetSocket;
 import io.vertx.core.shareddata.Counter;
+import org.apache.log4j.Logger;
 import org.dna.mqtt.moquette.proto.messages.*;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+
+//import io.vertx.core.logging.Logger;
 
 /**
  * Created by hult on 11/28/16.
@@ -67,12 +71,12 @@ public class MQTTClient {
         this.vertx.setTimer((long)(5000 * Math.random()), id -> {
             netClient.connect(port, host, res -> {
                 if (!res.succeeded()) {
-                    logger.warn(String.format("%s tcp connect failed for [%s] and retry", clientID, res.cause().getMessage()));
+                    logger.debug(String.format("%s tcp connect failed for [%s] and retry", clientID, res.cause().getMessage()));
                     connectWithRetry(host, port);
                 } else {
                     NetSocket sock = res.result();
                     mqttClientSocket = new MQTTClientSocket(sock, this);
-                    logger.info(String.format("TCP from %s at %s established, try mqtt CONNECT", clientID, mqttClientSocket.netSocket.localAddress()));
+                    logger.debug(String.format("TCP from %s at %s established, try mqtt CONNECT", clientID, mqttClientSocket.netSocket.localAddress()));
                     sendConnectMsg();
                     vertx.setPeriodic(3_000, login -> {
                         Future connected = futures.get(-1);
@@ -83,7 +87,7 @@ public class MQTTClient {
                             vertx.cancelTimer(login);
                             tried = CONNECT_RETRY;
                             if (!connected.isComplete()) {
-                                logger.warn(String.format("%s at %s not receive connect ack, tcp reconnect", clientID, mqttClientSocket.netSocket.localAddress()));
+                                logger.debug(String.format("%s at %s not receive connect ack, tcp reconnect", clientID, mqttClientSocket.netSocket.localAddress()));
                                 mqttClientSocket.closeConnection();
                                 mqttClientSocket = null;
                                 connectWithRetry(host, port);
@@ -110,7 +114,7 @@ public class MQTTClient {
     public void onConnect(ConnAckMessage ack) {
         Future connected = futures.get(-1);
         if (connected.isComplete()) {
-            logger.warn(String.format("%s receive duplicate CONNACK", clientID));
+            logger.debug(String.format("%s receive duplicate CONNACK", clientID));
             return;
         }
         connected.complete();
@@ -140,7 +144,7 @@ public class MQTTClient {
         CompositeFuture.all(pubFutureList).setHandler(f -> {
             if (f.succeeded()) {
                 this.allPublished.complete();
-                logger.info(clientID + " finished his job");
+                logger.debug(clientID + " finished his job");
             } else {
                 logger.error(clientID + "failed to finish job for " + f.cause().toString());
             }
@@ -249,7 +253,7 @@ public class MQTTClient {
     }
 
 
-    private Logger logger = LoggerFactory.getLogger(MQTTClient.class);
+    private Logger logger = Logger.getLogger(MQTTClient.class);
     protected String clientID;
 
 }

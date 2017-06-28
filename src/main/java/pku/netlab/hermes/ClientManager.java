@@ -1,16 +1,13 @@
 package pku.netlab.hermes;
 
 import io.vertx.core.*;
-import io.vertx.core.datagram.DatagramSocket;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.io.FileUtils;
+import org.apache.log4j.Logger;
 import org.dna.mqtt.moquette.proto.messages.AbstractMessage;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,7 +17,7 @@ import java.util.List;
  * Created by hult on 11/29/16.
  */
 public class ClientManager extends AbstractVerticle {
-    private Logger logger = LoggerFactory.getLogger(ClientManager.class);
+    private Logger logger = Logger.getLogger(ClientManager.class);
     private int seq;
     private int QPS;
     private int duration;

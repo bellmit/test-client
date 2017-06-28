@@ -1,6 +1,5 @@
 package pku.netlab.hermes;
 
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.cli.CLI;
 import io.vertx.core.cli.CLIException;

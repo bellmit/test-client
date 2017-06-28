@@ -34,7 +34,7 @@ public class MQTTSession {
 
     public boolean onAck(int msgID) {
         if (!inFlightMessages.containsKey(msgID)) {
-            logger.info(String.format("%s RECEIVE DUP PUBACK %s\n", clientID, msgID));
+            logger.debug(String.format("%s RECEIVE DUP PUBACK %s\n", clientID, msgID));
             return false;
         }
         inFlightMessages.remove(msgID);
