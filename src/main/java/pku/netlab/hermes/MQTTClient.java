@@ -171,7 +171,9 @@ public class MQTTClient {
         int messageID = msg.getMessageID();
         session.onAck(messageID);
         Future subAck = futures.remove(messageID);
-        subAck.complete();
+        if (subAck != null) {
+            subAck.complete();
+        }
     }
 
     public void onUnsub(UnsubAckMessage msg) {
