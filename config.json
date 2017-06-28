@@ -3,7 +3,7 @@
   //"host": "219.223.196.132",
   "port": 14000,
   "interval": 120,
-  "client_num": 5,
+  "client_num": 1000,
   "duration": 3,
   "qps": 0,
   "payload": 1024,

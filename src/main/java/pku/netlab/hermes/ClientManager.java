@@ -54,7 +54,8 @@ public class ClientManager extends AbstractVerticle {
     }
 
     private void allConnected(AsyncResult<CompositeFuture> result) {
-        this.batchSubscribe();
+        System.out.println("ALL CONNECTED");
+        //this.batchSubscribe();
         /*
         Future<Integer> batchPubFuture = Future.future();
         batchPubFuture.setHandler(res-> {

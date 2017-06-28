@@ -55,6 +55,10 @@ public class MQTTClient {
 
     public Future connectBroker(Config config) throws Exception {
         this.host = config.randomHost();
+        if (!this.host.equals("vmware")) {
+            System.out.println("HOST ERROE!!!");
+            System.out.println(this.host);
+        }
         this.port = config.getPort();
         this.keepAlive = config.getInterval();
         this.payload = config.getPayload();
@@ -68,12 +72,13 @@ public class MQTTClient {
     }
 
     private void connectWithRetry(String host, int port) {
-        this.vertx.setTimer((long)(5000 * Math.random()), id -> {
+        this.vertx.setPeriodic((long)(5000 * Math.random()), id -> {
             netClient.connect(port, host, res -> {
                 if (!res.succeeded()) {
                     logger.debug(String.format("%s tcp connect failed for [%s] and retry", clientID, res.cause().getMessage()));
                     connectWithRetry(host, port);
                 } else {
+                    vertx.cancelTimer(id);
                     NetSocket sock = res.result();
                     mqttClientSocket = new MQTTClientSocket(sock, this);
                     logger.debug(String.format("TCP from %s at %s established, try mqtt CONNECT", clientID, mqttClientSocket.netSocket.localAddress()));
